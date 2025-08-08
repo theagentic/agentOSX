@@ -1,0 +1,25 @@
+# Core dependencies
+requests>=2.31.0
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# OAuth and social platforms
+requests-oauthlib>=1.3.1
+
+# Optional: Official provider SDKs (uncomment as needed)
+# openai>=1.0.0
+# anthropic>=0.7.0
+# google-generativeai>=0.3.0
+
+# Optional: Vector stores and RAG
+# chromadb>=0.4.0
+# langchain>=0.1.0
+
+# Optional: Discord/Telegram bots
+# discord.py>=2.3.0
+# python-telegram-bot>=20.0
+
+# Development
+pytest>=7.4.0
+black>=23.0.0
+mypy>=1.5.0
