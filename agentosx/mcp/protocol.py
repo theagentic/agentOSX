@@ -68,7 +68,7 @@ class MCPMessage(ABC):
 @dataclass
 class MCPRequest(MCPMessage):
     """MCP request message (expects a response)."""
-    method: str
+    method: str = ""
     params: Optional[Dict[str, Any]] = None
     id: Optional[Union[str, int]] = None
     
@@ -98,7 +98,7 @@ class MCPRequest(MCPMessage):
 @dataclass
 class MCPResponse(MCPMessage):
     """MCP response message."""
-    id: Union[str, int]
+    id: Union[str, int] = ""
     result: Optional[Any] = None
     error: Optional[MCPError] = None
     
@@ -129,7 +129,7 @@ class MCPResponse(MCPMessage):
 @dataclass
 class MCPNotification(MCPMessage):
     """MCP notification message (no response expected)."""
-    method: str
+    method: str = ""
     params: Optional[Dict[str, Any]] = None
     
     def to_dict(self) -> Dict[str, Any]:

@@ -1,0 +1,39 @@
+# Include package data
+include README.md
+include LICENSE
+include CHANGELOG.md
+include requirements.txt
+include .env.example
+
+# Include documentation
+recursive-include docs *.md *.rst *.txt
+
+# Include examples
+recursive-include examples *.py *.yaml *.yml *.md
+
+# Include CLI templates
+recursive-include agentosx/cli/templates *
+
+# Include type stubs
+include agentosx/py.typed
+
+# Exclude unnecessary files
+exclude .gitignore
+exclude .dockerignore
+exclude Dockerfile
+exclude docker-compose.yml
+exclude pytest.ini
+exclude .pre-commit-config.yaml
+
+# Exclude development and test files
+recursive-exclude tests *
+recursive-exclude .github *
+recursive-exclude agents *
+prune tests
+prune .github
+prune agents
+prune __pycache__
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude .DS_Store
+global-exclude *.so

@@ -79,6 +79,34 @@ class StreamEvent:
             return self.to_dict()
 
 
+class TextEvent(StreamEvent):
+    """Text stream event for token-by-token streaming."""
+    
+    def __init__(
+        self,
+        text: str,
+        agent_id: Optional[str] = None,
+        is_complete: bool = False,
+        timestamp: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        """Initialize text event."""
+        data = {
+            "text": text,
+            "agent_id": agent_id,
+            "complete": is_complete
+        }
+        super().__init__(
+            type=EventType.LLM_TOKEN,
+            data=data,
+            timestamp=timestamp,
+            metadata=metadata
+        )
+        self.text = text
+        self.agent_id = agent_id
+        self.is_complete = is_complete
+
+
 @dataclass
 class AgentStartEvent(StreamEvent):
     """Agent start event."""

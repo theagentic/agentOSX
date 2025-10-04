@@ -4,7 +4,10 @@ AgentOSX - Production-grade, MCP-native agent framework.
 A comprehensive framework for building, deploying, and governing agents at scale.
 """
 
-__version__ = "1.0.0"
+__version__ = "0.1.0"
+__author__ = "AgentOSX Team"
+__email__ = "team@agentosx.dev"
+__license__ = "MIT"
 
 # Core agent framework
 from .agents.base import BaseAgent, AgentStatus, AgentState, ExecutionContext

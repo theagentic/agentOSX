@@ -105,6 +105,15 @@ class MCPServer:
         self.tool_adapter.register_tool(name, description, func, input_schema)
         logger.info(f"Registered tool: {name}")
     
+    def list_tools(self) -> List[ToolDefinition]:
+        """
+        List all registered tools.
+        
+        Returns:
+            List of tool definitions
+        """
+        return self.tool_adapter.list_tools()
+    
     def register_resource(
         self,
         uri: str,

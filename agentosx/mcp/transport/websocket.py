@@ -32,7 +32,7 @@ class WebSocketTransport(Transport):
     
     def __init__(
         self,
-        websocket: Optional[WebSocketServerProtocol | WebSocketClientProtocol] = None,
+        websocket: Optional[object] = None,  # WebSocketServerProtocol or WebSocketClientProtocol
         uri: Optional[str] = None,
     ):
         """

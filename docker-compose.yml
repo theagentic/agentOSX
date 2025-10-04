@@ -1,0 +1,153 @@
+version: '3.8'
+
+services:
+  # AgentOSX Framework
+  agentosx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentosx
+    restart: unless-stopped
+    ports:
+      - "8080:8080"  # MCP server (SSE)
+      - "8081:8081"  # WebSocket
+    environment:
+      # AgentOS Backend
+      - AGENTOS_URL=http://agentos:5000
+      - AGENTOS_API_KEY=${AGENTOS_API_KEY}
+      
+      # Marketplace
+      - MARKETPLACE_URL=${MARKETPLACE_URL:-https://marketplace.agentos.dev}
+      - MARKETPLACE_API_KEY=${MARKETPLACE_API_KEY}
+      
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      
+      # LLM Providers
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      
+      # Deployment
+      - AGENTS_DIR=/app/agents
+      - DEPLOYMENT_DIR=/app/data/deployments
+    volumes:
+      - ./agents:/app/agents:rw
+      - ./data:/app/data:rw
+      - ./logs:/app/logs:rw
+      - ./.env:/app/.env:ro
+    networks:
+      - agentos-network
+    depends_on:
+      - agentos
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # AgentOS Backend (optional - if running full stack)
+  agentos:
+    image: agentos/agentos:latest  # Replace with actual image
+    container_name: agentos
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./agentos_agents:/app/agents:rw
+      - ./agentos_data:/app/data:rw
+    networks:
+      - agentos-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/debug/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis (optional - for distributed agents)
+  redis:
+    image: redis:7-alpine
+    container_name: agentosx-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - agentos-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # PostgreSQL (optional - for persistent storage)
+  postgres:
+    image: postgres:15-alpine
+    container_name: agentosx-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-agentosx}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_DB=${POSTGRES_DB:-agentosx}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - agentos-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentosx"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Prometheus (optional - monitoring)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: agentosx-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - agentos-network
+
+  # Grafana (optional - dashboards)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: agentosx-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - agentos-network
+    depends_on:
+      - prometheus
+
+networks:
+  agentos-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  postgres-data:
+  prometheus-data:
+  grafana-data:

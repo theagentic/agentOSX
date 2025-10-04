@@ -28,7 +28,7 @@ class WebSocketHandler:
     Provides bidirectional streaming over WebSocket connections.
     """
     
-    def __init__(self, websocket: Optional[WebSocketServerProtocol] = None):
+    def __init__(self, websocket: Optional[object] = None):  # WebSocketServerProtocol
         """
         Initialize WebSocket handler.
         

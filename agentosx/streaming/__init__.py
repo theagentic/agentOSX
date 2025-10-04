@@ -5,6 +5,7 @@ Streaming Package for AgentOSX.
 from .events import (
     EventType,
     StreamEvent,
+    TextEvent,
     AgentStartEvent,
     TokenEvent,
     ToolCallEvent,
@@ -16,6 +17,7 @@ from .formatters import VercelAIFormatter, OpenAIFormatter, PlainTextFormatter
 __all__ = [
     "EventType",
     "StreamEvent",
+    "TextEvent",
     "AgentStartEvent",
     "TokenEvent",
     "ToolCallEvent",
