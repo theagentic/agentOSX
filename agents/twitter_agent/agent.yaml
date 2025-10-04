@@ -1,0 +1,363 @@
+# Twitter Agent Manifest
+# Automated Twitter posting and blog-to-thread conversion
+
+version: "1.0"
+
+agent:
+  name: "twitter-agent"
+  version: "2.0.0"
+  description: "Automated Twitter bot for posting tweets and converting blog posts to threads"
+  author: "AgentOSX Team"
+  tags:
+    - "social-media"
+    - "twitter"
+    - "automation"
+    - "blog"
+
+persona:
+  system_prompt: |
+    You are a Twitter content specialist that helps users create engaging tweets
+    and threads. You convert long-form blog content into compelling Twitter threads
+    that capture attention and drive engagement. You understand Twitter's character
+    limits, best practices for threads, and how to craft hooks that make people stop scrolling.
+  
+  tone: "engaging"
+  
+  traits:
+    - "creative"
+    - "concise"
+    - "social-media-savvy"
+    - "audience-focused"
+  
+  goals:
+    - "Create viral-worthy tweets"
+    - "Convert blog posts to engaging threads"
+    - "Drive engagement and clicks"
+    - "Maintain brand voice"
+
+llm:
+  primary:
+    provider: "google_gemini"
+    model: "gemini-1.5-pro"
+    temperature: 0.8  # Higher for creative content
+    max_tokens: 8192
+  
+  fallback:
+    provider: "openai"
+    model: "gpt-4"
+    temperature: 0.8
+    max_tokens: 4096
+  
+  streaming: true
+
+tools:
+  - name: "post_tweet"
+    description: "Post a single tweet to Twitter"
+    schema:
+      type: "object"
+      properties:
+        text:
+          type: "string"
+          description: "Tweet text (max 280 characters)"
+          maxLength: 280
+        media_urls:
+          type: "array"
+          items:
+            type: "string"
+          description: "Optional media URLs"
+      required: ["text"]
+    implementation: "twitter_agent.tools.post_tweet"
+    config:
+      timeout: 30
+      max_retries: 3
+  
+  - name: "post_thread"
+    description: "Post a thread of tweets"
+    schema:
+      type: "object"
+      properties:
+        tweets:
+          type: "array"
+          items:
+            type: "string"
+          description: "Array of tweets for the thread"
+        blog_title:
+          type: "string"
+          description: "Original blog post title"
+      required: ["tweets"]
+    implementation: "twitter_agent.tools.post_thread"
+    config:
+      timeout: 300  # Threads take longer
+      delay_between_tweets: 5
+  
+  - name: "generate_thread"
+    description: "Generate a Twitter thread from blog content"
+    schema:
+      type: "object"
+      properties:
+        blog_content:
+          type: "string"
+          description: "Blog post content"
+        blog_title:
+          type: "string"
+          description: "Blog post title"
+        num_tweets:
+          type: "integer"
+          description: "Desired number of tweets"
+          default: 5
+          minimum: 3
+          maximum: 15
+      required: ["blog_content", "blog_title"]
+    implementation: "twitter_agent.tools.generate_thread"
+  
+  - name: "get_timeline"
+    description: "Get recent tweets from timeline"
+    schema:
+      type: "object"
+      properties:
+        count:
+          type: "integer"
+          description: "Number of tweets to fetch"
+          default: 10
+    implementation: "twitter_agent.tools.get_timeline"
+  
+  - name: "analyze_engagement"
+    description: "Analyze engagement metrics for tweets"
+    schema:
+      type: "object"
+      properties:
+        tweet_ids:
+          type: "array"
+          items:
+            type: "string"
+          description: "Tweet IDs to analyze"
+      required: ["tweet_ids"]
+    implementation: "twitter_agent.tools.analyze_engagement"
+  
+  - name: "monitor_blog_directory"
+    description: "Monitor blog directory for new posts"
+    schema:
+      type: "object"
+      properties:
+        directory_path:
+          type: "string"
+          description: "Path to blog directory"
+        auto_post:
+          type: "boolean"
+          description: "Automatically post new blogs"
+          default: false
+      required: ["directory_path"]
+    implementation: "twitter_agent.tools.monitor_blog"
+
+memory:
+  type: "buffer"
+  buffer:
+    max_size: 20
+    summary_threshold: 10
+  persistence:
+    enabled: true
+    path: "./memory/twitter-agent"
+
+workflows:
+  - name: "blog_to_thread"
+    description: "Convert blog post to Twitter thread and post"
+    
+    graph:
+      nodes:
+        - id: "start"
+          type: "start"
+        
+        - id: "read_blog"
+          type: "agent"
+          agent_id: "twitter-agent"
+          config:
+            input_template: "Read blog: {blog_path}"
+            output_key: "blog_content"
+        
+        - id: "generate_thread"
+          type: "agent"
+          agent_id: "twitter-agent"
+          config:
+            input_template: "Generate thread from: {blog_content}"
+            output_key: "tweets"
+          max_retries: 2
+          retry_delay: 2.0
+        
+        - id: "review_checkpoint"
+          type: "checkpoint"
+        
+        - id: "approve"
+          type: "condition"
+          config:
+            condition_type: "manual_approval"
+            message: "Review and approve tweets before posting"
+        
+        - id: "post_thread"
+          type: "agent"
+          agent_id: "twitter-agent"
+          config:
+            input_template: "Post thread: {tweets}"
+            output_key: "thread_url"
+          max_retries: 3
+          retry_delay: 5.0
+        
+        - id: "error_handler"
+          type: "error_handler"
+        
+        - id: "end"
+          type: "end"
+      
+      edges:
+        - from: "start"
+          to: "read_blog"
+          condition: "always"
+        
+        - from: "read_blog"
+          to: "generate_thread"
+          condition: "on_success"
+        
+        - from: "read_blog"
+          to: "error_handler"
+          condition: "on_failure"
+        
+        - from: "generate_thread"
+          to: "review_checkpoint"
+          condition: "on_success"
+        
+        - from: "review_checkpoint"
+          to: "approve"
+          condition: "always"
+        
+        - from: "approve"
+          to: "post_thread"
+          condition: "on_success"
+        
+        - from: "approve"
+          to: "end"
+          condition: "on_failure"
+        
+        - from: "post_thread"
+          to: "end"
+          condition: "always"
+        
+        - from: "error_handler"
+          to: "end"
+          condition: "always"
+
+governance:
+  content_filters:
+    - type: "profanity"
+      action: "block"
+    
+    - type: "hate_speech"
+      action: "block"
+    
+    - type: "spam"
+      action: "warn"
+  
+  rate_limits:
+    requests_per_minute: 15  # Twitter API limits
+    tweets_per_hour: 50
+    threads_per_day: 10
+  
+  approval:
+    required_for:
+      - "post_thread"  # Require approval for threads
+    approvers:
+      - "user"
+  
+  cost:
+    max_cost_per_request: 0.5
+    max_cost_per_day: 10.0
+
+agentos:
+  enabled: true
+  events:
+    subscribe:
+      - "blog.post.created"
+      - "system.schedule.daily"
+    publish:
+      - "twitter.thread.posted"
+      - "twitter.engagement.report"
+  api:
+    expose: true
+    prefix: "/api/v1/twitter"
+    auth_required: true
+
+mcp:
+  server:
+    enabled: true
+    transport: "stdio"
+    expose:
+      tools: true
+      resources: true
+      prompts: true
+    
+    resources:
+      - uri: "twitter://timeline"
+        name: "Twitter Timeline"
+        description: "Recent tweets from timeline"
+        mime_type: "application/json"
+      
+      - uri: "twitter://analytics"
+        name: "Engagement Analytics"
+        description: "Tweet engagement metrics"
+        mime_type: "application/json"
+    
+    prompts:
+      - name: "thread_starter"
+        description: "Generate a thread opening tweet"
+        template: |
+          Create an attention-grabbing opening tweet for a thread about: {{topic}}
+          
+          Make it:
+          - Under 280 characters
+          - Include a hook that makes people want to read more
+          - End with "🧵 Thread ⬇️" or similar
+        arguments:
+          - name: "topic"
+            type: "string"
+            required: true
+      
+      - name: "thread_summary"
+        description: "Generate a thread summary tweet"
+        template: |
+          Create a summary tweet for this thread:
+          {{thread_content}}
+          
+          Include:
+          - Key takeaway
+          - Call to action
+          - Relevant hashtags
+        arguments:
+          - name: "thread_content"
+            type: "string"
+            required: true
+
+env:
+  required:
+    - "TWITTER_API_KEY"
+    - "TWITTER_API_SECRET"
+    - "TWITTER_ACCESS_TOKEN"
+    - "TWITTER_ACCESS_TOKEN_SECRET"
+    - "GEMINI_API_KEY"
+  optional:
+    - "BLOG_POSTS_PATH"
+    - "OPENAI_API_KEY"
+
+metadata:
+  license: "MIT"
+  repository: "https://github.com/theagentic/agentOSX"
+  performance:
+    max_concurrent_requests: 5
+    request_timeout: 300
+  logging:
+    level: "INFO"
+    format: "json"
+    destinations:
+      - "console"
+      - "file"
+    file:
+      path: "./logs/twitter-agent.log"
+      rotation: "daily"
+      retention_days: 30
