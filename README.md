@@ -22,6 +22,14 @@ Production-grade, MCP-native multi-agent framework for building, orchestrating, 
 - **Advanced Workflows**: Checkpointing, conditional branching, parallel execution, error handlers
 - **Agent Migrations**: Twitter and Blog agents migrated from agentOS with manifest-driven config
 
+### Phase 3: Developer Experience 🎉 NEW
+- **Rich CLI**: Typer-based command-line interface with rich formatting and 9 commands
+- **Hot Reload**: File watching with automatic agent reloading during development
+- **Interactive Playground**: REPL interface for testing agents with command history
+- **Testing Infrastructure**: pytest integration with async support and evaluation harness
+- **Comprehensive Documentation**: Getting started, architecture, development guides, and API reference
+- **Example Agents**: Quickstart examples for simple agents, MCP servers, and streaming chat
+
 ## Quick Start
 
 ### Installation
@@ -30,24 +38,38 @@ Production-grade, MCP-native multi-agent framework for building, orchestrating, 
 pip install -r requirements.txt
 ```
 
-### Create Your First Agent
+### Create Your First Agent (CLI)
+
+```bash
+# Create a new agent
+agentosx init my-first-agent
+
+# Run it
+agentosx run my-first-agent --input="Hello!"
+
+# Start development server with hot reload
+agentosx dev my-first-agent --watch
+
+# Test interactively
+agentosx playground --agent=my-first-agent
+
+# Run as MCP server
+agentosx mcp start my-first-agent --transport=stdio
+```
+
+### Create Your First Agent (Code)
 
 ```python
-from agentosx import AgentBuilder
+from agentosx.agents.base import Agent
 
-# Define a tool
-async def search_web(query: str) -> str:
-    """Search the web for information."""
-    return f"Results for: {query}"
+class MyAgent(Agent):
+    async def process(self, input_text: str) -> str:
+        return f"You said: {input_text}"
 
-# Build agent
-agent = (
-    AgentBuilder()
-    .name("search-agent")
-    .llm("anthropic", "claude-3-sonnet")
-    .tool("search", search_web)
-    .mcp_server(transport="stdio")
-    .build()
+# Run it
+agent = MyAgent()
+await agent.start()
+result = await agent.process("Hello!")
 )
 
 # Run agent
