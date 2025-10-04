@@ -1,9 +1,10 @@
 # AgentOSX
 
-Production-grade, MCP-native agent framework for building, deploying, and governing agents at scale.
+Production-grade, MCP-native multi-agent framework for building, orchestrating, and governing agents at scale.
 
-## Features
+## 🎯 Key Features
 
+### Phase 1: MCP Foundation ✅
 - **MCP (Model Context Protocol) Integration**: Native support for exposing and consuming MCP servers
 - **Declarative Agent Definition**: YAML-based agent manifests with schema validation
 - **Lifecycle Management**: Comprehensive hooks for initialization, execution, and teardown
@@ -11,6 +12,15 @@ Production-grade, MCP-native agent framework for building, deploying, and govern
 - **Tool System**: Dynamic tool discovery, registration, and execution with schema inference
 - **State Management**: Checkpointing, versioning, and rollback capabilities
 - **Transport Layers**: STDIO, SSE, and WebSocket transports for MCP communication
+
+### Phase 2: Multi-Agent Orchestration ✅
+- **Three Orchestration Patterns**: Swarm-style handoffs, CrewAI-style teams, LangGraph-style workflows
+- **Central Coordinator**: Agent registry, discovery, and orchestrator management
+- **Context Preservation**: Serializable handoff contexts with conversation history
+- **Workflow Graphs**: DAG-based execution with 6 node types and 4 edge conditions
+- **Event-Driven Coordination**: Message bus with pub/sub pattern and priority queuing
+- **Advanced Workflows**: Checkpointing, conditional branching, parallel execution, error handlers
+- **Agent Migrations**: Twitter and Blog agents migrated from agentOS with manifest-driven config
 
 ## Quick Start
 
@@ -46,61 +56,101 @@ result = await agent.process("Find information about AI")
 print(result)
 ```
 
-### Expose as MCP Server
+### Multi-Agent Orchestration
 
 ```python
-from agentosx.mcp.transport import StdioTransport
+from agentosx.orchestration import Coordinator, HandoffManager, WorkflowGraph, NodeType
 
-# Convert agent to MCP server
-mcp_server = agent.to_mcp_server()
+# Setup coordinator
+coordinator = Coordinator()
+await coordinator.register_agent("research", research_agent)
+await coordinator.register_agent("writer", writer_agent)
 
-# Start server
-transport = StdioTransport()
-await mcp_server.start(transport)
+# Option 1: Swarm-style handoffs
+handoff_manager = HandoffManager(coordinator)
+result = await handoff_manager.handoff(
+    from_agent_id="research",
+    to_agent_id="writer",
+    input="Write about AI trends"
+)
+
+# Option 2: CrewAI-style teams
+from agentosx.orchestration import Crew, CrewRole
+crew = Crew(name="content-crew")
+await crew.add_member("research", research_agent, CrewRole.WORKER)
+await crew.add_task("Research AI trends")
+results = await crew.execute()
+
+# Option 3: LangGraph-style workflows
+workflow = WorkflowGraph("pipeline", coordinator)
+workflow.add_node("research", NodeType.AGENT, agent_id="research")
+workflow.add_node("write", NodeType.AGENT, agent_id="writer")
+workflow.add_edge("research", "write")
+state = await workflow.execute(input="AI trends 2025")
 ```
 
 ### Load from Manifest
 
-Create `agent.yaml`:
+Create `agents/my_agent/agent.yaml`:
 
 ```yaml
-version: "1.0"
-agent:
-  name: "my-agent"
-  version: "1.0.0"
-  description: "My custom agent"
-  
-  llm:
+persona:
+  name: "Research Assistant"
+  system_prompt: "You are an expert researcher"
+
+llm:
+  primary:
     provider: "anthropic"
     model: "claude-3-sonnet"
     temperature: 0.7
-    max_tokens: 2000
-  
-  tools:
-    - "search_web"
-    - "analyze_data"
-  
-  mcp:
-    enabled: true
-    transport: "stdio"
-    expose_tools: true
+
+tools:
+  - name: "search_web"
+    schema:
+      type: "object"
+      properties:
+        query: {type: "string"}
+    implementation: "tools.search_tool"
+
+workflows:
+  - name: "research_flow"
+    type: "graph"
+    nodes:
+      - {id: "start", type: "start"}
+      - {id: "research", type: "agent"}
+      - {id: "end", type: "end"}
+
+mcp:
+  server:
+    resources:
+      - uri: "agent://results"
 ```
 
 Load and run:
 
 ```python
-from agentosx.agents import AgentLoader
+import yaml
 
-loader = AgentLoader()
-agent = loader.load_from_file("agent.yaml")
+# Load manifest
+with open("agents/my_agent/agent.yaml") as f:
+    manifest = yaml.safe_load(f)
 
-await agent.initialize()
+# Create agent from manifest
+from agents.my_agent.agent import MyAgent
+agent = MyAgent()
 await agent.start()
 ```
 
-## Architecture
+## 📚 Documentation
 
-### MCP Integration Layer
+- **[PHASE2_COMPLETE.md](PHASE2_COMPLETE.md)** - Phase 2 orchestration features and implementation status
+- **[AGENT_MANIFEST_GUIDE.md](AGENT_MANIFEST_GUIDE.md)** - Complete guide to agent manifest YAML schema
+- **[PLAN.md](PLAN.md)** - Project roadmap and development phases
+- **[PRD.md](PRD.md)** - Product requirements document
+
+## 🏗️ Architecture
+
+### Phase 1: MCP Foundation
 
 AgentOSX implements the Model Context Protocol for bidirectional tool and resource sharing:
 
@@ -108,6 +158,36 @@ AgentOSX implements the Model Context Protocol for bidirectional tool and resour
 - **Client Mode**: Consume external MCP servers (filesystem, git, databases)
 - **Dynamic Discovery**: Automatically register and discover tools
 - **Streaming**: Support for long-running operations with progress updates
+
+### Phase 2: Multi-Agent Orchestration
+
+Three orchestration patterns for different coordination needs:
+
+#### 1. Swarm-style Handoffs (Lightweight Delegation)
+- Agent-to-agent task handoffs with context preservation
+- Return-to-caller mechanism
+- Auto-routing with custom rules
+- Serializable contexts for persistence
+
+#### 2. CrewAI-style Teams (Role-Based Collaboration)
+- Four crew roles: Manager, Worker, Reviewer, Specialist
+- Task queue with priorities and dependencies
+- Three execution modes: Sequential, Parallel, Hierarchical
+- Shared memory for team state
+
+#### 3. LangGraph-style Workflows (DAG Execution)
+- 6 node types: Agent, Condition, Checkpoint, Parallel, Error Handler, Start/End
+- 4 edge conditions: Always, On Success, On Failure, Conditional
+- State management with checkpointing
+- Retry logic and error handling
+- YAML workflow definitions
+
+### Message Bus
+Event-driven coordination with pub/sub pattern:
+- Topic-based routing with wildcards
+- Priority queuing (LOW, NORMAL, HIGH, CRITICAL)
+- Handler statistics and message history
+- AgentOS event system integration
 
 ### Agent Lifecycle
 
@@ -117,41 +197,78 @@ AgentOSX implements the Model Context Protocol for bidirectional tool and resour
    on_init()   on_start()  on_message() on_stop()
 ```
 
-### Tool System
+## 📁 Project Structure
 
-Tools are automatically converted to MCP format with schema inference:
-
-```python
-@tool(name="calculate", description="Perform calculations")
-async def calculate(expression: str) -> float:
-    """Calculate a mathematical expression."""
-    return eval(expression)
+```
+agentOSX/
+├── agentosx/                 # Core framework
+│   ├── orchestration/        # Multi-agent orchestration
+│   │   ├── coordinator.py    # Central coordinator (265 lines)
+│   │   ├── handoff.py        # Swarm-style handoffs (347 lines)
+│   │   ├── crew.py           # CrewAI teams (456 lines)
+│   │   ├── graph.py          # LangGraph workflows (546 lines)
+│   │   └── message_bus.py    # Event bus (359 lines)
+│   ├── core/
+│   │   ├── llm/              # LLM abstraction layer
+│   │   ├── memory/           # Memory systems
+│   │   ├── policy/           # Governance policies
+│   │   └── tools/            # Tool system
+│   └── agents/
+│       └── base.py           # Base agent class
+├── agents/                   # Agent implementations
+│   ├── _template/            # Agent template (584 lines)
+│   ├── twitter_agent/        # Twitter agent (814 lines)
+│   │   ├── agent.yaml        # Manifest (330 lines)
+│   │   └── agent.py          # Implementation (484 lines)
+│   └── blog_agent/           # Blog agent
+│       └── agent.yaml        # Manifest (447 lines)
+├── examples/
+│   ├── orchestration_examples.py  # All patterns demo
+│   └── social_post_demo.py
+└── docs/
+    ├── PHASE2_COMPLETE.md         # Phase 2 status
+    └── AGENT_MANIFEST_GUIDE.md    # Manifest guide
 ```
 
-## Examples
+## 🚀 Examples
 
+### Basic Examples
 See the `examples/` directory for:
 
-- `mcp_server_example.py` - MCP server creation
-- `social_post_demo.py` - Social media posting agent
+- **`orchestration_examples.py`** - Complete demonstration of all orchestration patterns
+  - Example 1: Swarm-style handoffs with context preservation
+  - Example 2: CrewAI-style teams with role-based collaboration
+  - Example 3: LangGraph-style workflows with DAG execution
+  - Example 4: Message bus coordination with pub/sub
+  - Example 5: Combined orchestration using multiple patterns
 
-## Documentation
+- **`social_post_demo.py`** - Social media posting agent
 
-Full documentation available in:
+### Production Agents
 
-- PLAN.md - Technical implementation plan
-- PRD.md - Product requirements document
+- **Twitter Agent** (`agents/twitter_agent/`)
+  - Tweepy v2 API integration
+  - Google Gemini for AI thread generation
+  - File system monitoring for blog posts
+  - 9-node workflow with approval gate
+  - Rate limiting and statistics tracking
 
-## Requirements
+- **Blog Agent** (`agents/blog_agent/`)
+  - Complex 15-node workflow
+  - Parallel section writing
+  - Quality check with conditional looping
+  - Manual approval gate
+  - Plagiarism detection
+
+## 📦 Requirements
 
 - Python 3.10+
 - pydantic >= 2.0
 - pyyaml
-- websockets (optional, for WebSocket transport)
+- asyncio
+- Additional dependencies per agent (tweepy, google-generativeai, etc.)
 
-## Phase 1 Complete ✅
-
-This implementation includes:
+## ✅ Phase 1 Complete
 
 ✅ MCP Protocol Implementation (JSON-RPC 2.0)  
 ✅ MCP Server with tool/resource/prompt support  
@@ -162,12 +279,39 @@ This implementation includes:
 ✅ Agent loader from YAML manifests  
 ✅ Streaming support with multiple formats  
 ✅ SDK with fluent builder API  
+✅ LLM router with 7 providers  
+✅ Policy system (content filters, rate limits, approvals)  
+✅ Memory systems (vector, buffer, hybrid)  
 
-## Next Steps (Phase 2)
+## ✅ Phase 2 Complete (92%)
 
-- Multi-agent orchestration (Swarm, Crew, Graph patterns)
-- Enhanced LLM router with streaming
-- Memory backends (SQLite, PostgreSQL, Chroma)
+✅ Central Coordinator (265 lines)  
+✅ Swarm-style Handoffs (347 lines)  
+✅ CrewAI-style Teams (456 lines)  
+✅ LangGraph-style Workflows (546 lines)  
+✅ Message Bus (359 lines)  
+✅ Agent Manifest Schema (274 lines)  
+✅ Template Agent (584 lines)  
+✅ Twitter Agent Migration (814 lines)  
+✅ Comprehensive Examples (orchestration_examples.py)  
+🟡 Blog Agent Implementation (manifest complete, implementation pending)  
+
+**Total Phase 2 Code: 3,800+ lines**
+
+## 🔜 Next Steps
+
+### Immediate Tasks
+1. Complete Blog Agent implementation
+2. Create integration test suite
+3. Add workflow visualization
+4. Create deployment guides
+
+### Phase 3 Planning
+- Web UI for orchestration monitoring
+- Workflow debugger with step-through
+- Performance metrics dashboard
+- Additional agent migrations
+- Workflow template library
 - Policy engine with governance
 - CLI tools for development
 - Hot reload and debugging tools

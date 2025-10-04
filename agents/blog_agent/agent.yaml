@@ -1,0 +1,441 @@
+# Blog Agent Manifest
+# Automated blog post generation from GitHub repositories
+
+version: "1.0"
+
+agent:
+  name: "blog-agent"
+  version: "2.0.0"
+  description: "Automated blog post generator from GitHub repos with full workflow"
+  author: "AgentOSX Team"
+  tags:
+    - "content-generation"
+    - "blog"
+    - "github"
+    - "automation"
+
+persona:
+  system_prompt: |
+    You are a technical content writer that creates engaging blog posts from
+    software repositories. You analyze code, understand architecture, and explain
+    technical concepts in an accessible way. You write for developers who want to
+    learn and understand new technologies quickly.
+  
+  tone: "professional"
+  
+  traits:
+    - "analytical"
+    - "clear-communicator"
+    - "detail-oriented"
+    - "technically-proficient"
+  
+  goals:
+    - "Create informative blog content"
+    - "Explain technical concepts clearly"
+    - "Engage developer audience"
+    - "Maintain high quality standards"
+
+llm:
+  primary:
+    provider: "anthropic"
+    model: "claude-3-5-sonnet-20241022"
+    temperature: 0.7
+    max_tokens: 8192
+  
+  fallback:
+    provider: "openai"
+    model: "gpt-4-turbo-preview"
+    temperature: 0.7
+    max_tokens: 8192
+  
+  streaming: true
+
+tools:
+  - name: "research_repo"
+    description: "Research a GitHub repository"
+    schema:
+      type: "object"
+      properties:
+        repo_url:
+          type: "string"
+          description: "GitHub repository URL"
+        aspects:
+          type: "array"
+          items:
+            type: "string"
+          description: "Aspects to research (architecture, features, usage, etc.)"
+      required: ["repo_url"]
+    implementation: "blog_agent.tools.research_repo"
+    config:
+      timeout: 120
+      max_retries: 2
+  
+  - name: "create_outline"
+    description: "Create a blog post outline"
+    schema:
+      type: "object"
+      properties:
+        topic:
+          type: "string"
+          description: "Blog post topic"
+        research_data:
+          type: "object"
+          description: "Research findings"
+        target_length:
+          type: "integer"
+          description: "Target word count"
+          default: 1500
+      required: ["topic", "research_data"]
+    implementation: "blog_agent.tools.create_outline"
+  
+  - name: "write_section"
+    description: "Write a blog post section"
+    schema:
+      type: "object"
+      properties:
+        section_title:
+          type: "string"
+          description: "Section title"
+        outline_point:
+          type: "string"
+          description: "Outline point to expand"
+        context:
+          type: "object"
+          description: "Context from research and previous sections"
+      required: ["section_title", "outline_point"]
+    implementation: "blog_agent.tools.write_section"
+  
+  - name: "review_content"
+    description: "Review and improve content"
+    schema:
+      type: "object"
+      properties:
+        content:
+          type: "string"
+          description: "Content to review"
+        criteria:
+          type: "array"
+          items:
+            type: "string"
+          description: "Review criteria"
+          default: ["clarity", "accuracy", "engagement"]
+      required: ["content"]
+    implementation: "blog_agent.tools.review_content"
+  
+  - name: "publish_blog"
+    description: "Publish blog post"
+    schema:
+      type: "object"
+      properties:
+        title:
+          type: "string"
+          description: "Blog post title"
+        content:
+          type: "string"
+          description: "Blog post content"
+        metadata:
+          type: "object"
+          description: "Post metadata (tags, category, etc.)"
+        platform:
+          type: "string"
+          enum: ["hugo", "jekyll", "markdown", "wordpress"]
+          default: "hugo"
+      required: ["title", "content"]
+    implementation: "blog_agent.tools.publish_blog"
+    config:
+      timeout: 60
+
+memory:
+  type: "hybrid"
+  
+  vector:
+    provider: "chroma"
+    collection: "blog-agent-memory"
+    embedding_model: "text-embedding-ada-002"
+  
+  buffer:
+    max_size: 15
+    summary_threshold: 8
+  
+  persistence:
+    enabled: true
+    path: "./memory/blog-agent"
+
+workflows:
+  - name: "repo_to_blog"
+    description: "Complete workflow from GitHub repo to published blog post"
+    
+    graph:
+      nodes:
+        - id: "start"
+          type: "start"
+        
+        - id: "research"
+          type: "agent"
+          agent_id: "blog-agent"
+          config:
+            input_template: "Research repository: {repo_url}"
+            output_key: "research_data"
+          max_retries: 3
+          retry_delay: 5.0
+        
+        - id: "checkpoint_research"
+          type: "checkpoint"
+        
+        - id: "create_outline"
+          type: "agent"
+          agent_id: "blog-agent"
+          config:
+            input_template: "Create outline from research: {research_data}"
+            output_key: "outline"
+          max_retries: 2
+          retry_delay: 2.0
+        
+        - id: "write_intro"
+          type: "agent"
+          agent_id: "blog-agent"
+          config:
+            input_template: "Write introduction: {outline.intro}"
+            output_key: "intro"
+        
+        - id: "write_body"
+          type: "parallel"
+          config:
+            branches:
+              - ["write_section_1", "write_section_2"]
+              - ["write_section_3"]
+        
+        - id: "write_conclusion"
+          type: "agent"
+          agent_id: "blog-agent"
+          config:
+            input_template: "Write conclusion: {outline.conclusion}"
+            output_key: "conclusion"
+        
+        - id: "assemble_post"
+          type: "agent"
+          agent_id: "blog-agent"
+          config:
+            input_template: "Assemble blog post"
+            output_key: "full_content"
+        
+        - id: "checkpoint_draft"
+          type: "checkpoint"
+        
+        - id: "review"
+          type: "agent"
+          agent_id: "blog-agent"
+          config:
+            input_template: "Review content: {full_content}"
+            output_key: "reviewed_content"
+          max_retries: 1
+        
+        - id: "needs_revision"
+          type: "condition"
+          config:
+            condition_type: "check_quality_score"
+            threshold: 0.8
+        
+        - id: "human_approval"
+          type: "condition"
+          config:
+            condition_type: "manual_approval"
+            message: "Review blog post before publishing"
+            timeout: 3600  # 1 hour timeout
+        
+        - id: "publish"
+          type: "agent"
+          agent_id: "blog-agent"
+          config:
+            input_template: "Publish blog: {reviewed_content}"
+            output_key: "publish_result"
+          max_retries: 3
+          retry_delay: 5.0
+        
+        - id: "error_handler"
+          type: "error_handler"
+        
+        - id: "end"
+          type: "end"
+      
+      edges:
+        # Main flow
+        - from: "start"
+          to: "research"
+          condition: "always"
+        
+        - from: "research"
+          to: "checkpoint_research"
+          condition: "on_success"
+        
+        - from: "research"
+          to: "error_handler"
+          condition: "on_failure"
+        
+        - from: "checkpoint_research"
+          to: "create_outline"
+          condition: "always"
+        
+        - from: "create_outline"
+          to: "write_intro"
+          condition: "on_success"
+        
+        - from: "write_intro"
+          to: "write_body"
+          condition: "on_success"
+        
+        - from: "write_body"
+          to: "write_conclusion"
+          condition: "on_success"
+        
+        - from: "write_conclusion"
+          to: "assemble_post"
+          condition: "on_success"
+        
+        - from: "assemble_post"
+          to: "checkpoint_draft"
+          condition: "on_success"
+        
+        - from: "checkpoint_draft"
+          to: "review"
+          condition: "always"
+        
+        - from: "review"
+          to: "needs_revision"
+          condition: "on_success"
+        
+        # Conditional revision loop
+        - from: "needs_revision"
+          to: "write_intro"
+          condition: "conditional"
+          # If quality score < threshold, go back to write_intro
+        
+        - from: "needs_revision"
+          to: "human_approval"
+          condition: "conditional"
+          # If quality score >= threshold, proceed to approval
+        
+        # Approval flow
+        - from: "human_approval"
+          to: "publish"
+          condition: "on_success"
+        
+        - from: "human_approval"
+          to: "end"
+          condition: "on_failure"
+          # User rejected, end workflow
+        
+        - from: "publish"
+          to: "end"
+          condition: "always"
+        
+        # Error handling
+        - from: "error_handler"
+          to: "end"
+          condition: "always"
+
+governance:
+  content_filters:
+    - type: "profanity"
+      action: "block"
+    
+    - type: "plagiarism"
+      action: "block"
+      config:
+        similarity_threshold: 0.7
+  
+  rate_limits:
+    requests_per_hour: 30
+    blog_posts_per_day: 5
+  
+  approval:
+    required_for:
+      - "publish_blog"
+    approvers:
+      - "user"
+      - "editor"
+  
+  cost:
+    max_cost_per_request: 2.0
+    max_cost_per_day: 50.0
+
+agentos:
+  enabled: true
+  events:
+    subscribe:
+      - "github.repo.updated"
+      - "system.schedule.weekly"
+    publish:
+      - "blog.post.created"
+      - "blog.post.published"
+  api:
+    expose: true
+    prefix: "/api/v1/blog"
+    auth_required: true
+
+mcp:
+  server:
+    enabled: true
+    transport: "stdio"
+    expose:
+      tools: true
+      resources: true
+      prompts: true
+    
+    resources:
+      - uri: "blog://drafts"
+        name: "Blog Drafts"
+        description: "List of draft blog posts"
+        mime_type: "application/json"
+      
+      - uri: "blog://published"
+        name: "Published Posts"
+        description: "List of published blog posts"
+        mime_type: "application/json"
+    
+    prompts:
+      - name: "blog_intro"
+        description: "Generate blog post introduction"
+        template: |
+          Write an engaging introduction for a blog post about: {{topic}}
+          
+          Key points to cover:
+          {{key_points}}
+          
+          Make it:
+          - Attention-grabbing first sentence
+          - Clear problem statement
+          - Preview of what reader will learn
+          - 2-3 paragraphs
+        arguments:
+          - name: "topic"
+            type: "string"
+            required: true
+          - name: "key_points"
+            type: "string"
+            required: true
+
+env:
+  required:
+    - "ANTHROPIC_API_KEY"
+    - "GITHUB_TOKEN"
+  optional:
+    - "OPENAI_API_KEY"
+    - "BLOG_OUTPUT_PATH"
+
+metadata:
+  license: "MIT"
+  repository: "https://github.com/theagentic/agentOSX"
+  performance:
+    max_concurrent_requests: 3
+    request_timeout: 600  # 10 minutes for long-running workflows
+  logging:
+    level: "INFO"
+    format: "json"
+    destinations:
+      - "console"
+      - "file"
+    file:
+      path: "./logs/blog-agent.log"
+      rotation: "daily"
+      retention_days: 30

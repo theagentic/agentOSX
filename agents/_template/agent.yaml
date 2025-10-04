@@ -1,0 +1,290 @@
+# Example Agent Manifest
+# Complete schema with all supported features
+
+version: "1.0"
+
+# Agent metadata
+agent:
+  name: "example-agent"
+  version: "1.0.0"
+  description: "Example agent demonstrating all manifest features"
+  author: "Your Name"
+  tags:
+    - "example"
+    - "template"
+
+# Persona configuration
+persona:
+  system_prompt: |
+    You are an example agent that demonstrates the full capabilities
+    of the AgentOSX framework. You are helpful, accurate, and efficient.
+  
+  tone: "professional"  # professional, casual, friendly, formal
+  
+  traits:
+    - "analytical"
+    - "detail-oriented"
+    - "proactive"
+  
+  goals:
+    - "Complete tasks efficiently"
+    - "Provide accurate information"
+    - "Learn from interactions"
+
+# LLM configuration
+llm:
+  primary:
+    provider: "anthropic"  # anthropic, openai, google_gemini, grok, ollama
+    model: "claude-3-5-sonnet-20241022"
+    temperature: 0.7
+    max_tokens: 4096
+    system_prompt_override: null  # Override persona system_prompt
+  
+  fallback:
+    provider: "openai"
+    model: "gpt-4"
+    temperature: 0.7
+    max_tokens: 4096
+  
+  streaming: true
+  cache_responses: false
+
+# Tool definitions
+tools:
+  - name: "search_web"
+    description: "Search the web for information"
+    schema:
+      type: "object"
+      properties:
+        query:
+          type: "string"
+          description: "Search query"
+        num_results:
+          type: "integer"
+          description: "Number of results to return"
+          default: 5
+      required: ["query"]
+    
+    # Implementation reference
+    implementation: "tools.web.search_web"
+    
+    # Tool configuration
+    config:
+      timeout: 30
+      max_retries: 3
+  
+  - name: "analyze_data"
+    description: "Analyze a dataset"
+    schema:
+      type: "object"
+      properties:
+        data:
+          type: "array"
+          description: "Data to analyze"
+        analysis_type:
+          type: "string"
+          enum: ["statistical", "trend", "correlation"]
+      required: ["data", "analysis_type"]
+    
+    implementation: "tools.analytics.analyze"
+
+# Memory configuration
+memory:
+  type: "hybrid"  # vector, buffer, hybrid, sqlite, chroma
+  
+  vector:
+    provider: "chroma"
+    collection: "example-agent-memory"
+    embedding_model: "text-embedding-ada-002"
+  
+  buffer:
+    max_size: 10
+    summary_threshold: 5
+  
+  persistence:
+    enabled: true
+    path: "./memory/example-agent"
+
+# Workflow definitions
+workflows:
+  - name: "research_and_summarize"
+    description: "Research a topic and create a summary"
+    
+    graph:
+      nodes:
+        - id: "start"
+          type: "start"
+        
+        - id: "research"
+          type: "agent"
+          agent_id: "example-agent"
+          config:
+            input_template: "Research: {topic}"
+            output_key: "research_results"
+        
+        - id: "summarize"
+          type: "agent"
+          agent_id: "example-agent"
+          config:
+            input_template: "Summarize: {research_results}"
+            output_key: "summary"
+        
+        - id: "end"
+          type: "end"
+      
+      edges:
+        - from: "start"
+          to: "research"
+          condition: "always"
+        
+        - from: "research"
+          to: "summarize"
+          condition: "on_success"
+        
+        - from: "summarize"
+          to: "end"
+          condition: "always"
+
+# Governance and policy
+governance:
+  # Content filtering
+  content_filters:
+    - type: "profanity"
+      action: "block"  # block, warn, log
+    
+    - type: "pii"
+      action: "warn"
+      patterns:
+        - "email"
+        - "phone"
+        - "ssn"
+  
+  # Rate limiting
+  rate_limits:
+    requests_per_minute: 60
+    tokens_per_hour: 100000
+  
+  # Approval requirements
+  approval:
+    required_for:
+      - "delete_*"  # Any tool starting with delete_
+      - "send_email"
+    
+    approvers:
+      - "user"
+      - "admin"
+  
+  # Cost controls
+  cost:
+    max_cost_per_request: 1.0  # USD
+    max_cost_per_day: 50.0
+
+# AgentOS integration
+agentos:
+  enabled: true
+  
+  # Event subscriptions
+  events:
+    subscribe:
+      - "system.task.created"
+      - "agent.*.completed"
+    
+    publish:
+      - "agent.example.status"
+  
+  # API endpoints
+  api:
+    expose: true
+    prefix: "/api/v1/example-agent"
+    auth_required: true
+  
+  # Marketplace
+  marketplace:
+    public: false
+    category: "utilities"
+    pricing:
+      model: "free"  # free, pay_per_call, subscription
+
+# MCP configuration
+mcp:
+  # Expose agent as MCP server
+  server:
+    enabled: true
+    transport: "stdio"  # stdio, sse, websocket
+    port: 3001  # for sse/websocket
+    
+    # Capabilities to expose
+    expose:
+      tools: true
+      resources: true
+      prompts: true
+    
+    # Resource definitions
+    resources:
+      - uri: "agent://status"
+        name: "Agent Status"
+        description: "Current agent status"
+        mime_type: "application/json"
+      
+      - uri: "agent://memory"
+        name: "Agent Memory"
+        description: "Agent's memory contents"
+        mime_type: "application/json"
+    
+    # Prompt templates
+    prompts:
+      - name: "greeting"
+        description: "Generate a greeting"
+        template: "Hello {{name}}! How can I help you today?"
+        arguments:
+          - name: "name"
+            type: "string"
+            required: true
+  
+  # Connect to external MCP servers
+  clients:
+    - name: "filesystem"
+      transport: "stdio"
+      command: "npx"
+      args: ["@modelcontextprotocol/server-filesystem", "/path/to/files"]
+      auto_discover: true
+    
+    - name: "database"
+      transport: "sse"
+      url: "http://localhost:3002/mcp"
+      auth:
+        type: "bearer"
+        token: "${DATABASE_MCP_TOKEN}"
+
+# Environment variables
+env:
+  required:
+    - "ANTHROPIC_API_KEY"
+    - "OPENAI_API_KEY"
+  
+  optional:
+    - "DATABASE_MCP_TOKEN"
+
+# Metadata
+metadata:
+  license: "MIT"
+  repository: "https://github.com/yourorg/example-agent"
+  documentation: "https://docs.yourorg.com/agents/example"
+  
+  # Performance settings
+  performance:
+    max_concurrent_requests: 10
+    request_timeout: 300  # seconds
+    
+  # Logging
+  logging:
+    level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+    format: "json"
+    destinations:
+      - "console"
+      - "file"
+    
+    file:
+      path: "./logs/example-agent.log"
+      rotation: "daily"
+      retention_days: 30
