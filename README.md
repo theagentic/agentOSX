@@ -1,4 +1,177 @@
-# agentOS: Production-Ready Python Agent Framework
+# AgentOSX
+
+Production-grade, MCP-native agent framework for building, deploying, and governing agents at scale.
+
+## Features
+
+- **MCP (Model Context Protocol) Integration**: Native support for exposing and consuming MCP servers
+- **Declarative Agent Definition**: YAML-based agent manifests with schema validation
+- **Lifecycle Management**: Comprehensive hooks for initialization, execution, and teardown
+- **Streaming Support**: Real-time streaming with SSE, WebSocket, and Vercel AI SDK compatibility
+- **Tool System**: Dynamic tool discovery, registration, and execution with schema inference
+- **State Management**: Checkpointing, versioning, and rollback capabilities
+- **Transport Layers**: STDIO, SSE, and WebSocket transports for MCP communication
+
+## Quick Start
+
+### Installation
+
+```bash
+pip install -r requirements.txt
+```
+
+### Create Your First Agent
+
+```python
+from agentosx import AgentBuilder
+
+# Define a tool
+async def search_web(query: str) -> str:
+    """Search the web for information."""
+    return f"Results for: {query}"
+
+# Build agent
+agent = (
+    AgentBuilder()
+    .name("search-agent")
+    .llm("anthropic", "claude-3-sonnet")
+    .tool("search", search_web)
+    .mcp_server(transport="stdio")
+    .build()
+)
+
+# Run agent
+await agent.initialize()
+result = await agent.process("Find information about AI")
+print(result)
+```
+
+### Expose as MCP Server
+
+```python
+from agentosx.mcp.transport import StdioTransport
+
+# Convert agent to MCP server
+mcp_server = agent.to_mcp_server()
+
+# Start server
+transport = StdioTransport()
+await mcp_server.start(transport)
+```
+
+### Load from Manifest
+
+Create `agent.yaml`:
+
+```yaml
+version: "1.0"
+agent:
+  name: "my-agent"
+  version: "1.0.0"
+  description: "My custom agent"
+  
+  llm:
+    provider: "anthropic"
+    model: "claude-3-sonnet"
+    temperature: 0.7
+    max_tokens: 2000
+  
+  tools:
+    - "search_web"
+    - "analyze_data"
+  
+  mcp:
+    enabled: true
+    transport: "stdio"
+    expose_tools: true
+```
+
+Load and run:
+
+```python
+from agentosx.agents import AgentLoader
+
+loader = AgentLoader()
+agent = loader.load_from_file("agent.yaml")
+
+await agent.initialize()
+await agent.start()
+```
+
+## Architecture
+
+### MCP Integration Layer
+
+AgentOSX implements the Model Context Protocol for bidirectional tool and resource sharing:
+
+- **Server Mode**: Expose agent capabilities as MCP tools
+- **Client Mode**: Consume external MCP servers (filesystem, git, databases)
+- **Dynamic Discovery**: Automatically register and discover tools
+- **Streaming**: Support for long-running operations with progress updates
+
+### Agent Lifecycle
+
+```
+1. Initialize → 2. Start → 3. Process → 4. Stop
+       ↓            ↓           ↓          ↓
+   on_init()   on_start()  on_message() on_stop()
+```
+
+### Tool System
+
+Tools are automatically converted to MCP format with schema inference:
+
+```python
+@tool(name="calculate", description="Perform calculations")
+async def calculate(expression: str) -> float:
+    """Calculate a mathematical expression."""
+    return eval(expression)
+```
+
+## Examples
+
+See the `examples/` directory for:
+
+- `mcp_server_example.py` - MCP server creation
+- `social_post_demo.py` - Social media posting agent
+
+## Documentation
+
+Full documentation available in:
+
+- PLAN.md - Technical implementation plan
+- PRD.md - Product requirements document
+
+## Requirements
+
+- Python 3.10+
+- pydantic >= 2.0
+- pyyaml
+- websockets (optional, for WebSocket transport)
+
+## Phase 1 Complete ✅
+
+This implementation includes:
+
+✅ MCP Protocol Implementation (JSON-RPC 2.0)  
+✅ MCP Server with tool/resource/prompt support  
+✅ MCP Client with dynamic discovery  
+✅ Transport layers (STDIO, SSE, WebSocket)  
+✅ Tool adapter with schema inference  
+✅ Enhanced BaseAgent with lifecycle hooks  
+✅ Agent loader from YAML manifests  
+✅ Streaming support with multiple formats  
+✅ SDK with fluent builder API  
+
+## Next Steps (Phase 2)
+
+- Multi-agent orchestration (Swarm, Crew, Graph patterns)
+- Enhanced LLM router with streaming
+- Memory backends (SQLite, PostgreSQL, Chroma)
+- Policy engine with governance
+- CLI tools for development
+- Hot reload and debugging tools
+- AgentOS integration layer
 
 A plugin-first, multi-provider agent runtime inspired by elizaOS's registry pattern, extended for production use with multi-provider LLMs, social integrations, policy governance, workflows, and observability.
 
